@@ -31,15 +31,17 @@ int main(int argc, char** argv) {
 		toPlay.push_back(i);
 	}
 
+	//cout << "size before " << toPlay.size() << endl;
 
 	while (toPlay.size() > 1 && !hasLost)
 	{
+		// cout << "rank " << myRank << " size " << toPlay.size() << endl;
 		put_back = false;
 
 		if (toPlay.size() % 2 != 0)
 		{
 			put_back = true;
-
+			// send my score to other players (except me)
 			for (auto it = toPlay.begin(); it != toPlay.end(); ++it)
 			{
 				int i = distance(toPlay.begin(), it);
@@ -50,6 +52,8 @@ int main(int argc, char** argv) {
 				}
 			}
 
+			// receive other scores (except me)
+			// delete the player of the highest score from toPlay
 			for (auto it = toPlay.begin(); it != toPlay.end(); ++it)
 			{
 				int i = distance(toPlay.begin(), it);
@@ -68,13 +72,19 @@ int main(int argc, char** argv) {
 
 			toPlay.erase(toPlay.begin() + maxScoreIndex);
 		}
+		cout << "maxScore " << maxScore << endl;
+		cout << "maxScoreRank " << maxScoreRank << endl;
 
+		
+		// find my index
 		vector<int>::iterator it = find(toPlay.begin(), toPlay.end(), myRank);
 		int index = distance(toPlay.begin(), it);
 		bool opponentLost = false;
 
 		if (index % 2 == 0)
 		{
+			// if my index is even
+			// then i will send then receive
 			while (!hasLost && !opponentLost)
 			{
 				int myGuessedNumber = play(), opponentGuessedNumber;
@@ -95,16 +105,26 @@ int main(int argc, char** argv) {
 				//	cout << "My score: " << myScore << endl;
 				//}
 
+				// send game result to other player
+				MPI_Send(&hasLost, 1, MPI_C_BOOL, toPlay[index + 1], 2, MPI_COMM_WORLD);
+				MPI_Recv(&opponentLost, 1, MPI_C_BOOL, toPlay[index + 1], 2, MPI_COMM_WORLD, &stat);
+
 				if (hasLost) {
 					cout << "Player No. " << myRank << " has lost to player No. " << toPlay[index + 1] << endl;
 				}
 
-				MPI_Send(&hasLost, 1, MPI_C_BOOL, toPlay[index + 1], 2, MPI_COMM_WORLD);
-				MPI_Recv(&opponentLost, 1, MPI_C_BOOL, toPlay[index + 1], 2, MPI_COMM_WORLD, &stat);
+				if (opponentLost)
+				{
+					//cout << "before " << toPlay.size() << endl;
+					toPlay.erase(toPlay.begin() + (index + 1));
+					//cout << "after " << toPlay.size() << endl;
+				}
 			}
 		}
 		else
 		{
+			// if my index is odd
+			// then i will receive then send
 			while (!hasLost && !opponentLost)
 			{
 				int myGuessedNumber = play(), opponentGuessedNumber;
@@ -121,15 +141,25 @@ int main(int argc, char** argv) {
 					myScore++;
 				}
 
+				// send game result to other player
+				MPI_Recv(&opponentLost, 1, MPI_C_BOOL, toPlay[index - 1], 2, MPI_COMM_WORLD, &stat);
+				MPI_Send(&hasLost, 1, MPI_C_BOOL, toPlay[index - 1], 2, MPI_COMM_WORLD);
+				
 				if (hasLost) {
 					cout << "Player No. " << myRank << " has lost to player No. " << toPlay[index - 1] << endl;
 				}
 
-				MPI_Recv(&opponentLost, 1, MPI_C_BOOL, toPlay[index - 1], 2, MPI_COMM_WORLD, &stat);
-				MPI_Send(&hasLost, 1, MPI_C_BOOL, toPlay[index - 1], 2, MPI_COMM_WORLD);
+				if (opponentLost)
+				{
+					//cout << "before " << toPlay.size() << endl;
+					toPlay.erase(toPlay.begin() + (index - 1));
+					//cout << "after " << toPlay.size() << endl;
+				}
 			}
 		}
 
+
+		// send match result to other players
 		for (vector<int>::iterator it = toPlay.begin(); it != toPlay.end(); ++it)
 		{
 			int i = distance(toPlay.begin(), it);
@@ -140,27 +170,39 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		
+		/*cout << "before my rank = " << myRank << endl;
+		for (vector<int>::iterator it = toPlay.begin(); it != toPlay.end(); ++it) {
+			cout << " " << *it;
+		}
+		cout << endl;*/
+
+		// receive match result from other players
 		for (vector<int>:: iterator it = toPlay.begin(); it != toPlay.end(); ++it) {
 			if (*it != myRank)
 			{
 				MPI_Recv(&opponentLost, 1, MPI_C_BOOL, *it, 3, MPI_COMM_WORLD, &stat);
 
+				// if opponentLost delete him from toPlay array
 				if (opponentLost)
 				{
-					cout << toPlay.size() << " Before\n";
-					
 					it = toPlay.erase(it);
 
 					if (it == toPlay.end()) {
 						break;
 					}
 					
-					cout << toPlay.size() << " After\n";
 				}
 
 			}
 		}
+		
+		
+		/*cout << "after my rank = " << myRank << endl;
+		for (vector<int>::iterator it = toPlay.begin(); it != toPlay.end(); ++it) {
+			cout << " " << *it;
+		}
+		cout << endl;*/
+
 
 		/*
 		it = toPlay.begin();
